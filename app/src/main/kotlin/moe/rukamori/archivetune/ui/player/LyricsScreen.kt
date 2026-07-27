@@ -105,6 +105,8 @@ import moe.rukamori.archivetune.constants.LyricsBackgroundStyle
 import moe.rukamori.archivetune.constants.LyricsBackgroundStyleKey
 import moe.rukamori.archivetune.constants.LyricsMode
 import moe.rukamori.archivetune.constants.LyricsModeKey
+import moe.rukamori.archivetune.constants.LyricsAnimationStyle
+import moe.rukamori.archivetune.constants.LyricsAnimationStyleKey
 import moe.rukamori.archivetune.constants.PlayerBackgroundStyle
 import moe.rukamori.archivetune.constants.PlayerBackgroundStyleKey
 import moe.rukamori.archivetune.constants.PlayerCustomBlurKey
@@ -164,6 +166,17 @@ fun LyricsScreen(
 
     val (enableHapticFeedback) = rememberPreference(EnableHapticFeedbackKey, true)
     val lyricsMode by rememberEnumPreference(LyricsModeKey, LyricsMode.ENHANCED)
+    val lyricsAnimationStyle by rememberEnumPreference(LyricsAnimationStyleKey, LyricsAnimationStyle.APPLE)
+    val effectiveLyricsMode =
+        remember(lyricsMode, lyricsAnimationStyle) {
+            if (lyricsAnimationStyle == LyricsAnimationStyle.DRILL ||
+                lyricsAnimationStyle == LyricsAnimationStyle.STORY
+            ) {
+                LyricsMode.V2
+            } else {
+                lyricsMode
+            }
+        }
     val playerBackground by rememberEnumPreference(PlayerBackgroundStyleKey, PlayerBackgroundStyle.DEFAULT)
     val configuredLyricsBackground by rememberEnumPreference(LyricsBackgroundStyleKey, LyricsBackgroundStyle.DEFAULT)
     val lyricsBackground = configuredLyricsBackground.resolveFor(playerBackground)
@@ -388,7 +401,7 @@ fun LyricsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     AppleMusicLyricsPane(
-                        lyricsMode = lyricsMode,
+                        lyricsMode = effectiveLyricsMode,
                         foregroundColor = foregroundColor,
                         sliderPositionProvider = { sliderPosition },
                         lyricsSyncOffset = lyricsSyncOffset,
@@ -441,7 +454,7 @@ fun LyricsScreen(
                 }
             } else {
                 AppleMusicLyricsPane(
-                    lyricsMode = lyricsMode,
+                    lyricsMode = effectiveLyricsMode,
                     foregroundColor = foregroundColor,
                     sliderPositionProvider = { sliderPosition },
                     lyricsSyncOffset = lyricsSyncOffset,

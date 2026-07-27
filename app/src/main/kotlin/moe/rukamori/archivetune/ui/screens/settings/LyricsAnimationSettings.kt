@@ -29,19 +29,27 @@ import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavController
 import moe.rukamori.archivetune.LocalPlayerAwareWindowInsets
 import moe.rukamori.archivetune.R
+import moe.rukamori.archivetune.constants.LyricsAnimationStyle
+import moe.rukamori.archivetune.constants.LyricsAnimationStyleKey
+import moe.rukamori.archivetune.constants.LyricsTextCase
+import moe.rukamori.archivetune.constants.LyricsTextCaseKey
 import moe.rukamori.archivetune.constants.LyricsV2BounceFactorKey
 import moe.rukamori.archivetune.constants.LyricsV2FillTransitionWidthKey
 import moe.rukamori.archivetune.constants.LyricsV2GlowFactorKey
 import moe.rukamori.archivetune.constants.LyricsV2LrcBounceEnabledKey
+import moe.rukamori.archivetune.ui.component.EnumListPreference
 import moe.rukamori.archivetune.ui.component.IconButton
 import moe.rukamori.archivetune.ui.component.PreferenceEntry
 import moe.rukamori.archivetune.ui.component.PreferenceGroup
 import moe.rukamori.archivetune.ui.utils.backToMain
+import moe.rukamori.archivetune.utils.rememberEnumPreference
 import moe.rukamori.archivetune.utils.rememberPreference
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LyricsAnimationSettings(navController: NavController) {
+    val (lyricsAnimation, onLyricsAnimationChange) = rememberEnumPreference(LyricsAnimationStyleKey, defaultValue = LyricsAnimationStyle.APPLE)
+    val (lyricsTextCase, onLyricsTextCaseChange) = rememberEnumPreference(LyricsTextCaseKey, defaultValue = LyricsTextCase.ORIGINAL)
     val (bounceFactor, onBounceFactorChange) = rememberPreference(LyricsV2BounceFactorKey, defaultValue = 1f)
     val (glowFactor, onGlowFactorChange) = rememberPreference(LyricsV2GlowFactorKey, defaultValue = 1f)
     val (fillTransitionWidth, onFillTransitionWidthChange) = rememberPreference(LyricsV2FillTransitionWidthKey, defaultValue = 8f)
@@ -78,6 +86,45 @@ fun LyricsAnimationSettings(navController: NavController) {
                         ),
                     ).padding(bottom = SettingsDimensions.ScreenBottomPadding),
         ) {
+            PreferenceGroup(title = stringResource(R.string.lyrics_animation_style)) {
+                item {
+                    EnumListPreference(
+                        title = { Text(stringResource(R.string.lyrics_animation_style)) },
+                        icon = { Icon(painterResource(R.drawable.animation), null) },
+                        selectedValue = lyricsAnimation,
+                        onValueSelected = onLyricsAnimationChange,
+                        valueText = {
+                            when (it) {
+                                LyricsAnimationStyle.NONE -> stringResource(R.string.none)
+                                LyricsAnimationStyle.FADE -> stringResource(R.string.fade)
+                                LyricsAnimationStyle.GLOW -> stringResource(R.string.glow)
+                                LyricsAnimationStyle.SLIDE -> stringResource(R.string.slide)
+                                LyricsAnimationStyle.KARAOKE -> stringResource(R.string.karaoke)
+                                LyricsAnimationStyle.APPLE -> stringResource(R.string.apple_music_style)
+                                LyricsAnimationStyle.DRILL -> "Drill"
+                                LyricsAnimationStyle.STORY -> "Story"
+                            }
+                        },
+                    )
+                }
+
+                item {
+                    EnumListPreference(
+                        title = { Text(stringResource(R.string.lyrics_text_case)) },
+                        icon = { Icon(painterResource(R.drawable.text_fields), null) },
+                        selectedValue = lyricsTextCase,
+                        onValueSelected = onLyricsTextCaseChange,
+                        valueText = {
+                            when (it) {
+                                LyricsTextCase.ORIGINAL -> stringResource(R.string.original)
+                                LyricsTextCase.LOWERCASE -> stringResource(R.string.lowercase)
+                                LyricsTextCase.UPPERCASE -> stringResource(R.string.uppercase)
+                            }
+                        },
+                    )
+                }
+            }
+
             PreferenceGroup(title = "Animation Tuning") {
                 item {
                     PreferenceEntry(

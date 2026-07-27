@@ -670,6 +670,15 @@ enum class LyricsAnimationStyle {
     SLIDE,
     KARAOKE,
     APPLE,
+    DRILL,
+    STORY,
+}
+
+val LyricsTextCaseKey = stringPreferencesKey("lyricsTextCase")
+enum class LyricsTextCase {
+    ORIGINAL,
+    LOWERCASE,
+    UPPERCASE,
 }
 
 val LyricsTextSizeKey = floatPreferencesKey("lyricsTextSize")

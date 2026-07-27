@@ -54,6 +54,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -103,6 +104,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import moe.rukamori.archivetune.LocalPlayerConnection
 import moe.rukamori.archivetune.R
+import moe.rukamori.archivetune.constants.LyricsAnimationStyle
+import moe.rukamori.archivetune.constants.LyricsAnimationStyleKey
+import moe.rukamori.archivetune.constants.LyricsTextCase
+import moe.rukamori.archivetune.constants.LyricsTextCaseKey
 import moe.rukamori.archivetune.constants.LyricsClickKey
 import moe.rukamori.archivetune.constants.LyricsLineBlurKey
 import moe.rukamori.archivetune.constants.LyricsLineSpacingKey
@@ -211,6 +216,8 @@ fun LyricsV2(
     val (glowFactor) = rememberPreference(LyricsV2GlowFactorKey, defaultValue = 1f)
     val (fillTransitionWidth) = rememberPreference(LyricsV2FillTransitionWidthKey, defaultValue = 8f)
     val (lrcBounceEnabled) = rememberPreference(LyricsV2LrcBounceEnabledKey, defaultValue = true)
+    val lyricsAnimation by rememberEnumPreference(LyricsAnimationStyleKey, LyricsAnimationStyle.APPLE)
+    val lyricsTextCase by rememberEnumPreference(LyricsTextCaseKey, LyricsTextCase.ORIGINAL)
     val (romanizeChinese) = rememberPreference(LyricsRomanizeChineseKey, defaultValue = true)
     val (romanizeHindi) = rememberPreference(LyricsRomanizeHindiKey, defaultValue = true)
     val (romanizeJapanese) = rememberPreference(LyricsRomanizeJapaneseKey, defaultValue = true)
@@ -488,6 +495,103 @@ fun LyricsV2(
             return@BoxWithConstraints
         }
 
+        // ── Immersive single-line layout (Drill / Story) ──
+        // Web-faithful: no scroll reveal. Only the active line takes over the screen.
+        val immersiveStyle = lyricsAnimation == LyricsAnimationStyle.DRILL ||
+            lyricsAnimation == LyricsAnimationStyle.STORY
+        if (immersiveStyle && isSynced) {
+            val activeEntry = entriesWithWords.getOrNull(currentLineIndex)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp)
+                    .then(
+                        if (lyricsClick && activeEntry != null &&
+                            activeEntry != HEAD_LYRICS_ENTRY && activeEntry.time > 0
+                        ) {
+                            Modifier.clickable { player.seekTo(activeEntry.time) }
+                        } else {
+                            Modifier
+                        }
+                    ),
+                contentAlignment = when (lyricsAnimation) {
+                    LyricsAnimationStyle.STORY -> Alignment.CenterStart
+                    else -> Alignment.Center
+                },
+            ) {
+                if (activeEntry != null &&
+                    activeEntry != HEAD_LYRICS_ENTRY &&
+                    !activeEntry.isInstrumental
+                ) {
+                    key(currentLineIndex, activeEntry.time) {
+                        val isAllBackground =
+                            activeEntry.words?.all { it.isBackground || it.text.isBlank() } == true
+                        val displayText = applyLyricsTextCase(activeEntry.text, lyricsTextCase)
+                        val displayWords = if (lyricsTextCase == LyricsTextCase.ORIGINAL) {
+                            activeEntry.words
+                        } else {
+                            activeEntry.words?.map { w ->
+                                if (w.text.isBlank() || w.text == "\n") w
+                                else w.copy(text = applyLyricsTextCase(w.text, lyricsTextCase))
+                            }
+                        }
+                        val animatedWords = displayWords ?: run {
+                            val startSec = activeEntry.time / 1000.0
+                            val nextTime = entriesWithWords
+                                .drop(currentLineIndex + 1)
+                                .firstOrNull { it != HEAD_LYRICS_ENTRY && it.time >= 0L }
+                                ?.time
+                            val durSec = (((nextTime ?: (activeEntry.time + 5000L)) - activeEntry.time)
+                                .coerceAtLeast(300L)) / 1000.0
+                            when (lyricsAnimation) {
+                                LyricsAnimationStyle.DRILL ->
+                                    LyricsAnimationSchedule.synthesizeDrill(displayText, startSec, durSec)
+                                LyricsAnimationStyle.STORY ->
+                                    LyricsAnimationSchedule.synthesizeStory(displayText, startSec, durSec)
+                                else -> emptyList()
+                            }
+                        }
+                        when (lyricsAnimation) {
+                            LyricsAnimationStyle.DRILL -> LyricsDrill(
+                                words = animatedWords,
+                                isActive = true,
+                                isPast = false,
+                                currentPositionMs = currentPositionMs,
+                                textColor = textColor,
+                                inactiveAlpha = inactiveAlpha,
+                                baseFontSize = lyricsTextSize,
+                                isLineAllBackground = isAllBackground,
+                                textAlign = TextAlign.Center,
+                                lyricsFontFamily = lyricsFontFamily,
+                            )
+                            LyricsAnimationStyle.STORY -> LyricsStory(
+                                words = animatedWords,
+                                isActive = true,
+                                isPast = false,
+                                currentPositionMs = currentPositionMs,
+                                textColor = textColor,
+                                inactiveAlpha = inactiveAlpha,
+                                baseFontSize = lyricsTextSize,
+                                isLineAllBackground = isAllBackground,
+                                textAlign = TextAlign.Start,
+                                lyricsFontFamily = lyricsFontFamily,
+                            )
+                            else -> {}
+                        }
+                    }
+                } else if (activeEntry != null && activeEntry.isInstrumental) {
+                    InstrumentalBreakItem(
+                        durationMs = activeEntry.durationMs,
+                        currentPositionMs = playbackPositionMs,
+                        startTimeMs = activeEntry.time,
+                        textColor = textColor,
+                        inactiveAlpha = inactiveAlpha,
+                    )
+                }
+            }
+            return@BoxWithConstraints
+        }
+
         LazyColumn(
             state = listState,
             modifier =
@@ -761,6 +865,41 @@ fun LyricsV2(
                         if (lineIsRtl) LayoutDirection.Rtl else baseLayoutDirection
                     }
 
+                val displayWords = remember(item.words, lyricsTextCase) {
+                    if (lyricsTextCase == LyricsTextCase.ORIGINAL) {
+                        item.words
+                    } else {
+                        item.words?.map { w ->
+                            if (w.text.isBlank() || w.text == "\n") w
+                            else w.copy(text = applyLyricsTextCase(w.text, lyricsTextCase))
+                        }
+                    }
+                }
+                val displayText = remember(item.text, lyricsTextCase) {
+                    applyLyricsTextCase(item.text, lyricsTextCase)
+                }
+                val isImmersiveStyle = lyricsAnimation == LyricsAnimationStyle.DRILL ||
+                    lyricsAnimation == LyricsAnimationStyle.STORY
+                val animatedWords = remember(item, lyricsAnimation, lyricsTextCase, index, entriesWithWords) {
+                    if (!isImmersiveStyle) {
+                        null
+                    } else {
+                        displayWords ?: run {
+                            val startSec = item.time / 1000.0
+                            val nextTime = entriesWithWords
+                                .drop(index + 1)
+                                .firstOrNull { it != HEAD_LYRICS_ENTRY && it.time >= 0L }
+                                ?.time
+                            val durSec = (((nextTime ?: (item.time + 5000L)) - item.time).coerceAtLeast(300L)) / 1000.0
+                            when (lyricsAnimation) {
+                                LyricsAnimationStyle.DRILL -> LyricsAnimationSchedule.synthesizeDrill(displayText, startSec, durSec)
+                                LyricsAnimationStyle.STORY -> LyricsAnimationSchedule.synthesizeStory(displayText, startSec, durSec)
+                                else -> null
+                            }
+                        }
+                    }
+                }
+
                 CompositionLocalProvider(LocalLayoutDirection provides lineLayoutDirection) {
                     Column(
                         modifier =
@@ -870,9 +1009,37 @@ fun LyricsV2(
                             )
                         }
 
-                        if (item.words != null && isSynced) {
+                        if (isImmersiveStyle && isSynced && animatedWords != null) {
+                            when (lyricsAnimation) {
+                                LyricsAnimationStyle.DRILL -> LyricsDrill(
+                                    words = animatedWords,
+                                    isActive = isActive,
+                                    isPast = isPast,
+                                    currentPositionMs = currentPositionMs,
+                                    textColor = textColor,
+                                    inactiveAlpha = inactiveAlpha,
+                                    baseFontSize = lyricsTextSize,
+                                    isLineAllBackground = isAllBackground,
+                                    textAlign = textAlign,
+                                    lyricsFontFamily = lyricsFontFamily,
+                                )
+                                LyricsAnimationStyle.STORY -> LyricsStory(
+                                    words = animatedWords,
+                                    isActive = isActive,
+                                    isPast = isPast,
+                                    currentPositionMs = currentPositionMs,
+                                    textColor = textColor,
+                                    inactiveAlpha = inactiveAlpha,
+                                    baseFontSize = lyricsTextSize,
+                                    isLineAllBackground = isAllBackground,
+                                    textAlign = textAlign,
+                                    lyricsFontFamily = lyricsFontFamily,
+                                )
+                                else -> {}
+                            }
+                        } else if (item.words != null && isSynced) {
                             LyricsLineV2(
-                                words = item.words!!,
+                                words = displayWords ?: item.words!!,
                                 isActive = isActive,
                                 isPast = isPast,
                                 currentPositionMs = currentPositionMs,
@@ -889,7 +1056,7 @@ fun LyricsV2(
                             )
                         } else if (isSynced) {
                             LyricsLineLrcBounce(
-                                text = item.text,
+                                text = displayText,
                                 isActive = isActive,
                                 textColor = textColor.copy(alpha = if (isActive) 1f else 0.52f),
                                 fontSize = lyricsTextSize,
@@ -901,15 +1068,14 @@ fun LyricsV2(
                             )
                         } else {
                             Text(
-                                text = item.text,
-                                style =
-                                    MaterialTheme.typography.headlineMedium.copy(
-                                        fontSize = if (isAllBackground) (lyricsTextSize * 0.82f).sp else lyricsTextSize.sp,
-                                        fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
-                                        fontStyle = if (isAllBackground) FontStyle.Italic else FontStyle.Normal,
-                                        lineHeight = (lyricsTextSize * lyricsLineSpacing).sp,
-                                        fontFamily = lyricsFontFamily ?: MaterialTheme.typography.headlineMedium.fontFamily,
-                                    ),
+                                text = displayText,
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontSize = if (isAllBackground) (lyricsTextSize * 0.82f).sp else lyricsTextSize.sp,
+                                    fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                    fontStyle = if (isAllBackground) FontStyle.Italic else FontStyle.Normal,
+                                    lineHeight = (lyricsTextSize * lyricsLineSpacing).sp,
+                                    fontFamily = lyricsFontFamily ?: MaterialTheme.typography.headlineMedium.fontFamily,
+                                ),
                                 color = textColor.copy(alpha = if (isActive) 1f else 0.52f),
                                 textAlign = textAlign,
                                 modifier = Modifier.fillMaxWidth(),
