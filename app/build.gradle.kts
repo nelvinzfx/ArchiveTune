@@ -13,8 +13,8 @@ abstract class ValidateStartIoReleaseConfigurationTask : DefaultTask() {
 
     @TaskAction
     fun validate() {
-        require(appId.get().isNotBlank()) {
-            "START_IO_APP_ID is required for GMS release builds."
+        if (appId.get().isBlank()) {
+            logger.warn("START_IO_APP_ID is blank; Start.io support ads are disabled in this build.")
         }
     }
 }
