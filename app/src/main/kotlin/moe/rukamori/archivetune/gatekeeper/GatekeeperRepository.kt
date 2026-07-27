@@ -72,39 +72,10 @@ class GatekeeperRepository
         }
 
         private suspend fun performCheck(): GatekeeperResult {
-            val fallbackMessage = context.getString(R.string.gatekeeper_connection_blocked)
-            val bearerToken = BuildConfig.API_BEARER_TOKEN.trim()
-            if (bearerToken.isEmpty()) {
-                Timber.w("Gatekeeper bearer token is not configured")
-                return blocked(fallbackMessage, retryable = false)
-            }
-
-            return try {
-                val packageName = context.packageName
-                val versionCode = currentVersionCode(packageName)
-                val response =
-                    client.get("${BuildConfig.DATA_SERVER_URL.trimEnd('/')}/api/data") {
-                        header(HttpHeaders.Authorization, "Bearer $bearerToken")
-                        header(HEADER_PACKAGE_NAME, packageName)
-                        header(HEADER_VERSION_CODE, versionCode.toString())
-                    }
-
-                if (response.status == HttpStatusCode.OK) {
-                    NetworkGatekeeper.setConnectionBlocked(false)
-                    GatekeeperResult.Allowed
-                } else {
-                    Timber.w("Gatekeeper denied network access with HTTP ${response.status.value}")
-                    blocked(
-                        message = resolveWarningMessage(response.bodyAsText(), fallbackMessage),
-                        retryable = response.status.value >= HTTP_SERVER_ERROR_MINIMUM,
-                    )
-                }
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: Exception) {
-                Timber.w(exception, "Gatekeeper request failed")
-                blocked(fallbackMessage, retryable = true)
-            }
+            // Fork note: remote build attestation removed. Grant network access
+            // immediately without contacting the upstream data server.
+            NetworkGatekeeper.setConnectionBlocked(false)
+            return GatekeeperResult.Allowed
         }
 
         private fun currentVersionCode(packageName: String): Long {
