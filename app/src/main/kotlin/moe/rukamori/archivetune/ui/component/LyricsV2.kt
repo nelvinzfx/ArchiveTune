@@ -98,6 +98,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.NonCancellable
+import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -356,16 +357,23 @@ fun LyricsV2(
 
     LaunchedEffect(entriesWithWords, isSynced, leadMs, lyricsSyncOffset) {
         if (!isSynced || entriesWithWords.isEmpty()) return@LaunchedEffect
-        val pollIntervalMs = if (isTtmlFormat) 16L else 50L
+        // Tick on the display vsync so word-level animations (drill slam, karaoke
+        // fill) advance every frame instead of stepping at a coarse poll rate.
+        // When paused and not scrubbing, fall back to a slow poll to save power.
         while (isActive) {
             val sliderPos = sliderPositionProvider()
+            if (!player.isPlaying && sliderPos == null) {
+                delay(200L)
+            } else {
+                withFrameNanos { }
+            }
+
             val pos = sliderPos ?: player.currentPosition
 
             playbackPositionMs = (pos + lyricsSyncOffset.toLong()).coerceAtLeast(0L)
             currentPositionMs = (playbackPositionMs + leadMs + LYRIC_VISUAL_TUNING_OFFSET_MS).coerceAtLeast(0L)
 
             currentLineIndex = findCurrentLineIndex(entriesWithWords, currentPositionMs, 0L)
-            delay(pollIntervalMs)
         }
     }
 
