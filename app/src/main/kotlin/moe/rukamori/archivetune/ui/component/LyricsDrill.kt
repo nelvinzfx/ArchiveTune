@@ -38,9 +38,10 @@ private const val DRILL_EXIT_START = 0.85f // fraction where the fade-out begins
 private const val DRILL_START_SCALE = 1.18f // "slightly bigger" at birth
 private const val DRILL_SLAM_DISTANCE_EM = 0.85f // slam travel, relative to font size
 private const val DRILL_EXIT_DRIFT_EM = 0.18f // small downward drift while fading
-private const val DRILL_GHOST_STEP = 0.055f // trail spacing along the slam path
-private const val DRILL_GHOST1_ALPHA = 0.30f
-private const val DRILL_GHOST2_ALPHA = 0.14f
+private const val DRILL_GHOST_STEP = 0.03f // trail spacing along the slam path
+private const val DRILL_GHOST1_ALPHA = 0.22f
+private const val DRILL_GHOST2_ALPHA = 0.12f
+private const val DRILL_GHOST3_ALPHA = 0.06f
 
 private fun easeOutQuart(t: Float): Float {
     val u = 1f - t.coerceIn(0f, 1f)
@@ -68,6 +69,8 @@ private class DrillMotion(
     val ghost1Alpha: Float,
     val ghost2TranslateY: Dp,
     val ghost2Alpha: Float,
+    val ghost3TranslateY: Dp,
+    val ghost3Alpha: Float,
 )
 
 private fun drillMotion(progress: Float, fontSizeDp: Float): DrillMotion {
@@ -81,20 +84,25 @@ private fun drillMotion(progress: Float, fontSizeDp: Float): DrillMotion {
             val scale = DRILL_START_SCALE + (1f - DRILL_START_SCALE) * easeOutCubic(s)
             val alpha = easeOutCubic((s * 1.6f).coerceAtMost(1f))
 
-            // Trail strength follows slam velocity (easeOutQuart derivative ~ (1-s)^3).
+            // Trail strength follows slam velocity (easeOutQuart derivative ~ (1-s)^3)
+            // and is capped by the word's own alpha so ghosts never show alone.
             val u = 1f - s
             val velocity = u * u * u
+            val trail = velocity * alpha
             val g1y = drillSlamOffset((s - DRILL_GHOST_STEP).coerceAtLeast(0f)) * slamDp
             val g2y = drillSlamOffset((s - 2f * DRILL_GHOST_STEP).coerceAtLeast(0f)) * slamDp
+            val g3y = drillSlamOffset((s - 3f * DRILL_GHOST_STEP).coerceAtLeast(0f)) * slamDp
 
             DrillMotion(
                 alpha = alpha,
                 scale = scale,
                 translateY = y.dp,
                 ghost1TranslateY = g1y.dp,
-                ghost1Alpha = DRILL_GHOST1_ALPHA * velocity,
+                ghost1Alpha = DRILL_GHOST1_ALPHA * trail,
                 ghost2TranslateY = g2y.dp,
-                ghost2Alpha = DRILL_GHOST2_ALPHA * velocity,
+                ghost2Alpha = DRILL_GHOST2_ALPHA * trail,
+                ghost3TranslateY = g3y.dp,
+                ghost3Alpha = DRILL_GHOST3_ALPHA * trail,
             )
         }
 
@@ -107,6 +115,8 @@ private fun drillMotion(progress: Float, fontSizeDp: Float): DrillMotion {
                 ghost1Alpha = 0f,
                 ghost2TranslateY = 0.dp,
                 ghost2Alpha = 0f,
+                ghost3TranslateY = 0.dp,
+                ghost3Alpha = 0f,
             )
         }
 
@@ -121,6 +131,8 @@ private fun drillMotion(progress: Float, fontSizeDp: Float): DrillMotion {
                 ghost1Alpha = 0f,
                 ghost2TranslateY = 0.dp,
                 ghost2Alpha = 0f,
+                ghost3TranslateY = 0.dp,
+                ghost3Alpha = 0f,
             )
         }
     }
@@ -173,6 +185,21 @@ private fun DrillWord(
     val bgAlpha = if (isBackgroundWord) 0.82f else 1f
 
     Box(contentAlignment = Alignment.Center) {
+        if (motion.ghost3Alpha > 0.01f) {
+            DrillWordText(
+                text = text,
+                fontSize = wordFontSize,
+                isBackgroundWord = isBackgroundWord,
+                textColor = textColor,
+                lyricsFontFamily = lyricsFontFamily,
+                modifier = Modifier.graphicsLayer {
+                    translationY = motion.ghost3TranslateY.toPx()
+                    scaleX = motion.scale
+                    scaleY = motion.scale
+                    alpha = motion.ghost3Alpha * bgAlpha
+                },
+            )
+        }
         if (motion.ghost2Alpha > 0.01f) {
             DrillWordText(
                 text = text,
