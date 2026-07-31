@@ -53,44 +53,80 @@ object LyricsAnimationSchedule {
 
     private fun hasPunctuation(word: String): Boolean = word.any { it in ".,!?;:" }
 
+    // Syllable estimate: singers hold syllables, not characters, so syllable
+    // count tracks real word timing much better than raw length. Latin texts
+    // use vowel clusters; CJK roughly one syllable per character.
+    private fun syllableWeight(token: String): Double {
+        val letters = token.filter { it.isLetter() }
+        if (letters.isEmpty()) return 1.0
+        val cjk = letters.any {
+            isJapanese(it.toString()) || isChinese(it.toString()) || isKorean(it.toString())
+        }
+        if (cjk) return letters.length.toDouble()
+        var clusters = 0
+        var inVowel = false
+        for (c in letters.lowercase()) {
+            val v = c in "aeiouyáéíóúàèìòùâêîôûäëïöüãõ"
+            if (v && !inVowel) clusters++
+            inVowel = v
+        }
+        return clusters.coerceAtLeast(1).toDouble()
+    }
+
+    private data class Schedule(val startSec: Double, val endSec: Double)
+
+    private fun scheduleTokens(
+        tokens: List<String>,
+        lineStartSec: Double,
+        lineDurationSec: Double,
+        leadInSec: Double,
+    ): List<Schedule> {
+        if (tokens.isEmpty()) return emptyList()
+        val n = tokens.size
+        // Breathing gaps between words, capped so they never eat the line.
+        val perGap = if (n > 1) 0.055.coerceAtMost((lineDurationSec * 0.18) / (n - 1)) else 0.0
+        val lead = leadInSec.coerceAtMost(lineDurationSec * 0.1)
+        val distributable = (lineDurationSec - lead - perGap * (n - 1))
+            .coerceAtLeast(lineDurationSec * 0.5)
+        val weights = tokens.map {
+            0.7 + 1.5 * syllableWeight(it) + (if (hasPunctuation(it)) 0.8 else 0.0)
+        }
+        val totalWeight = weights.sum()
+        val result = mutableListOf<Schedule>()
+        var offset = lead
+        for (i in tokens.indices) {
+            val dur = (weights[i] / totalWeight) * distributable
+            result.add(Schedule(lineStartSec + offset, lineStartSec + offset + dur))
+            offset += dur + perGap
+        }
+        return result
+    }
+
     fun synthesizeDrill(text: String, lineStartSec: Double, lineDurationSec: Double): List<WordTimestamp> {
         val tokens = tokenize(text)
         if (tokens.isEmpty()) return emptyList()
-        val totalWeight = tokens.sumOf { 2.0 + it.length + (if (hasPunctuation(it)) 4.0 else 0.0) }
-        val result = mutableListOf<WordTimestamp>()
-        var currentOffset = 0.0
-        for (token in tokens) {
-            val weight = 2.0 + token.length + (if (hasPunctuation(token)) 4.0 else 0.0)
-            val wordDur = (weight / totalWeight) * lineDurationSec
-            result.add(WordTimestamp(
+        val schedules = scheduleTokens(tokens, lineStartSec, lineDurationSec, leadInSec = 0.08)
+        return tokens.mapIndexed { index, token ->
+            WordTimestamp(
                 text = token,
-                startTime = lineStartSec + currentOffset,
-                endTime = lineStartSec + currentOffset + wordDur
-            ))
-            currentOffset += wordDur
+                startTime = schedules[index].startSec,
+                endTime = schedules[index].endSec
+            )
         }
-        return result
     }
 
     fun synthesizeStory(text: String, lineStartSec: Double, lineDurationSec: Double): List<WordTimestamp> {
         val tokens = tokenize(text)
         if (tokens.isEmpty()) return emptyList()
-        val totalWeight = tokens.sumOf { it.length + 2.0 + (if (hasPunctuation(it)) 4.0 else 0.0) }
-        val startOffset = if (lineDurationSec >= 1.0) 0.1 else 0.0
-        val revealWindow = (lineDurationSec - startOffset).coerceAtLeast(lineDurationSec * 0.85)
-        val result = mutableListOf<WordTimestamp>()
-        var currentOffset = startOffset
-        for (token in tokens) {
-            val weight = token.length + 2.0 + (if (hasPunctuation(token)) 4.0 else 0.0)
-            val wordDur = (weight / totalWeight) * revealWindow
-            result.add(WordTimestamp(
+        val leadIn = if (lineDurationSec >= 1.0) 0.12 else 0.0
+        val schedules = scheduleTokens(tokens, lineStartSec, lineDurationSec, leadInSec = leadIn)
+        return tokens.mapIndexed { index, token ->
+            WordTimestamp(
                 text = token,
-                startTime = lineStartSec + currentOffset,
-                endTime = lineStartSec + currentOffset + wordDur
-            ))
-            currentOffset += wordDur
+                startTime = schedules[index].startSec,
+                endTime = schedules[index].endSec
+            )
         }
-        return result
     }
 
     fun getStoryGroups(tokens: List<WordTimestamp>, seedBase: Long): List<List<WordTimestamp>> {

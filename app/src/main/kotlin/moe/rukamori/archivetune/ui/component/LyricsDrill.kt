@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import moe.rukamori.archivetune.lyrics.WordTimestamp
-import kotlin.math.max
 
 // ── Drill motion profile ────────────────────────────────────────────────
 // Subtle slam: the word starts slightly enlarged above its resting spot,
@@ -33,8 +32,8 @@ import kotlin.math.max
 // trailing ghost copies that sample the word's recent trajectory — cheap
 // (no RenderEffect) and directional, like real motion blur.
 
-private const val DRILL_ENTRY_END = 0.38f // fraction of word duration spent slamming in
-private const val DRILL_EXIT_START = 0.85f // fraction where the fade-out begins
+private const val DRILL_ENTRY_MS = 300f // fixed slam-in duration so short words don't rush
+private const val DRILL_EXIT_MS = 260f // fixed fade-out, anchored to the word's end
 private const val DRILL_START_SCALE = 1.18f // "slightly bigger" at birth
 private const val DRILL_SLAM_DISTANCE_EM = 0.85f // slam travel, relative to font size
 private const val DRILL_EXIT_DRIFT_EM = 0.18f // small downward drift while fading
@@ -73,13 +72,16 @@ private class DrillMotion(
     val ghost3Alpha: Float,
 )
 
-private fun drillMotion(progress: Float, fontSizeDp: Float): DrillMotion {
-    val p = progress.coerceIn(0f, 1f)
+private fun drillMotion(nowMs: Long, startMs: Long, endMs: Long, fontSizeDp: Float): DrillMotion {
+    val durationMs = (endMs - startMs).coerceAtLeast(1L).toFloat()
+    val entryMs = minOf(DRILL_ENTRY_MS, durationMs * 0.45f)
+    val exitMs = minOf(DRILL_EXIT_MS, durationMs * 0.35f)
+    val exitStartMs = endMs - exitMs
     val slamDp = fontSizeDp * DRILL_SLAM_DISTANCE_EM
 
     return when {
-        p < DRILL_ENTRY_END -> {
-            val s = p / DRILL_ENTRY_END
+        nowMs < startMs + entryMs -> {
+            val s = ((nowMs - startMs).toFloat() / entryMs).coerceIn(0f, 1f)
             val y = drillSlamOffset(s) * slamDp
             val scale = DRILL_START_SCALE + (1f - DRILL_START_SCALE) * easeOutCubic(s)
             val alpha = easeOutCubic((s * 1.6f).coerceAtMost(1f))
@@ -106,7 +108,7 @@ private fun drillMotion(progress: Float, fontSizeDp: Float): DrillMotion {
             )
         }
 
-        p < DRILL_EXIT_START -> {
+        nowMs < exitStartMs -> {
             DrillMotion(
                 alpha = 1f,
                 scale = 1f,
@@ -121,7 +123,7 @@ private fun drillMotion(progress: Float, fontSizeDp: Float): DrillMotion {
         }
 
         else -> {
-            val t = (p - DRILL_EXIT_START) / (1f - DRILL_EXIT_START)
+            val t = ((nowMs - exitStartMs).toFloat() / exitMs).coerceIn(0f, 1f)
             val e = easeInQuad(t)
             DrillMotion(
                 alpha = 1f - e,
@@ -169,7 +171,9 @@ private fun DrillWordText(
 @Composable
 private fun DrillWord(
     text: String,
-    progress: Float,
+    nowMs: Long,
+    startMs: Long,
+    endMs: Long,
     isBackgroundWord: Boolean,
     baseFontSize: Float,
     textColor: Color,
@@ -181,7 +185,7 @@ private fun DrillWord(
 
     val density = LocalDensity.current
     val fontSizeDp = with(density) { wordFontSize.sp.toDp().value }
-    val motion = drillMotion(progress, fontSizeDp)
+    val motion = drillMotion(nowMs, startMs, endMs, fontSizeDp)
     val bgAlpha = if (isBackgroundWord) 0.82f else 1f
 
     Box(contentAlignment = Alignment.Center) {
@@ -306,12 +310,11 @@ fun LyricsDrill(
             val endMs = (word.endTime * 1000.0).toLong()
             if (currentPositionMs < startMs || currentPositionMs >= endMs) return@forEach
 
-            val durationMs = max(endMs - startMs, 1L)
-            val progress = ((currentPositionMs - startMs).toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
-
             DrillWord(
                 text = word.text.trim(),
-                progress = progress,
+                nowMs = currentPositionMs,
+                startMs = startMs,
+                endMs = endMs,
                 isBackgroundWord = isLineAllBackground || word.isBackground,
                 baseFontSize = baseFontSize,
                 textColor = textColor,
@@ -357,12 +360,11 @@ fun ImmersiveLyricsDrill(
             val endMs = (word.endTime * 1000.0).toLong()
             if (currentPositionMs < startMs || currentPositionMs >= endMs) return@forEach
 
-            val durationMs = max(endMs - startMs, 1L)
-            val progress = ((currentPositionMs - startMs).toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
-
             DrillWord(
                 text = displayText,
-                progress = progress,
+                nowMs = currentPositionMs,
+                startMs = startMs,
+                endMs = endMs,
                 isBackgroundWord = isLineAllBackground || word.isBackground,
                 baseFontSize = baseFontSize,
                 textColor = textColor,
