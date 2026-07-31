@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
@@ -39,7 +40,7 @@ fun LyricsStory(
     lyricsFontFamily: FontFamily?,
 ) {
     val currentPosSec = currentPositionMs / 1000.0
-
+    
     val seedBase = remember(words) { words.firstOrNull()?.text?.hashCode()?.toLong() ?: 0L }
     val groups = remember(words) { LyricsAnimationSchedule.getStoryGroups(words, seedBase) }
 
@@ -54,7 +55,7 @@ fun LyricsStory(
         groups.forEachIndexed { index, group ->
             val groupText = group.joinToString(" ") { it.text }
             val scaleVariant = remember(group) { LyricsAnimationSchedule.getStoryScaleVariant(groupText, seedBase + index) }
-
+            
             val groupFontSize = when (scaleVariant) {
                 0 -> baseFontSize * 1.5f
                 1 -> baseFontSize * 1.2f
@@ -62,40 +63,42 @@ fun LyricsStory(
                 else -> baseFontSize * 0.8f
             }
 
-            // Reveal the whole group together at its first word's start — one calm
-            // motion per group instead of a stutter-step per synthesized word time.
-            val groupStartSec = group.minOf { it.startTime }
-            val isRevealed = isPast || (isActive && currentPosSec >= groupStartSec)
-
-            val alpha by animateFloatAsState(
-                targetValue = if (isRevealed) 1f else 0f,
-                animationSpec = tween(durationMillis = 460, easing = FastOutSlowInEasing),
-                label = "alpha"
-            )
-            val translateY by animateFloatAsState(
-                targetValue = if (isRevealed) 0f else 18f,
-                animationSpec = tween(durationMillis = 460, easing = FastOutSlowInEasing),
-                label = "translateY"
-            )
-            val scale by animateFloatAsState(
-                targetValue = if (isRevealed) 1f else 0.92f,
-                animationSpec = tween(durationMillis = 460, easing = FastOutSlowInEasing),
-                label = "scale"
-            )
-
-            FlowRow(
-                modifier = Modifier
-                    .graphicsLayer {
-                        this.translationY = translateY
-                        this.scaleX = scale
-                        this.scaleY = scale
-                    }
-                    .alpha(if (isActive || isPast) alpha else inactiveAlpha)
-            ) {
+            FlowRow {
                 group.forEach { word ->
+                    val isRevealed = isPast || (isActive && currentPosSec >= word.startTime)
+
+                    val alpha by animateFloatAsState(
+                        targetValue = if (isRevealed) 1f else 0f,
+                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+                        label = "alpha"
+                    )
+                    val translateY by animateFloatAsState(
+                        targetValue = if (isRevealed) 0f else 15f,
+                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+                        label = "translateY"
+                    )
+                    val blur by animateFloatAsState(
+                        targetValue = if (isRevealed) 0f else 4f,
+                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+                        label = "blur"
+                    )
+                    val scale by animateFloatAsState(
+                        targetValue = if (isRevealed) 1f else 0.8f,
+                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
+                        label = "scale"
+                    )
+
                     Text(
                         text = word.text,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                            .graphicsLayer {
+                                this.translationY = translateY
+                                this.scaleX = scale
+                                this.scaleY = scale
+                            }
+                            .blur(blur.dp)
+                            .alpha(if (isActive || isPast) alpha else inactiveAlpha),
                         fontSize = if (isLineAllBackground) (groupFontSize * 0.82f).sp else groupFontSize.sp,
                         fontWeight = lyricsStoryFontWeight(isActive = isActive),
                         fontStyle = if (isLineAllBackground || word.isBackground) FontStyle.Italic else FontStyle.Normal,
