@@ -98,6 +98,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.NonCancellable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -509,6 +510,23 @@ fun LyricsV2(
             lyricsAnimation == LyricsAnimationStyle.STORY
         if (immersiveStyle && isSynced) {
             val activeEntry = entriesWithWords.getOrNull(currentLineIndex)
+
+            // Story reveal choreography anchor (web model): the word reveal
+            // schedule starts when the line activates, so words always play
+            // their full animation even on fast/rap lines. Re-anchor when the
+            // user seeks backwards within the same line.
+            var immersiveAnchorPosMs by remember { mutableLongStateOf(0L) }
+            var lastImmersivePosMs by remember { mutableLongStateOf(0L) }
+            LaunchedEffect(currentLineIndex) {
+                immersiveAnchorPosMs = currentPositionMs
+                lastImmersivePosMs = currentPositionMs
+            }
+            SideEffect {
+                if (currentPositionMs < lastImmersivePosMs - 400L) {
+                    immersiveAnchorPosMs = currentPositionMs
+                }
+                lastImmersivePosMs = currentPositionMs
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -576,6 +594,7 @@ fun LyricsV2(
                                 words = animatedWords,
                                 isActive = true,
                                 isPast = false,
+                                revealAnchorSec = immersiveAnchorPosMs / 1000.0,
                                 currentPositionMs = currentPositionMs,
                                 textColor = textColor,
                                 inactiveAlpha = inactiveAlpha,
