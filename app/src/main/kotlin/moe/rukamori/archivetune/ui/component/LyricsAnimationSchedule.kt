@@ -53,10 +53,37 @@ object LyricsAnimationSchedule {
 
     private fun hasPunctuation(word: String): Boolean = word.any { it in ".,!?;:" }
 
+    // Syllable estimate: singers hold syllables, not characters. Latin texts
+    // use vowel clusters; CJK roughly one syllable per character.
+    private fun syllableCount(token: String): Int {
+        val letters = token.filter { it.isLetter() }
+        if (letters.isEmpty()) return 1
+        val cjk = letters.any {
+            isJapanese(it.toString()) || isChinese(it.toString()) || isKorean(it.toString())
+        }
+        if (cjk) return letters.length
+        var clusters = 0
+        var inVowel = false
+        for (c in letters.lowercase()) {
+            val v = c in "aeiouyáéíóúàèìòùâêîôûäëïöüãõ"
+            if (v && !inVowel) clusters++
+            inVowel = v
+        }
+        return clusters.coerceAtLeast(1)
+    }
+
+    // Blended weight: 50% character-based + 50% syllable-based so timing tracks
+    // the vocal closer without drifting too far from the char-based rhythm.
+    private fun tokenWeight(token: String): Double {
+        val charWeight = 2.0 + token.length
+        val syllableWeight = 2.0 + syllableCount(token) * 3.0
+        return (charWeight + syllableWeight) / 2.0 + (if (hasPunctuation(token)) 4.0 else 0.0)
+    }
+
     fun synthesizeDrill(text: String, lineStartSec: Double, lineDurationSec: Double): List<WordTimestamp> {
         val tokens = tokenize(text)
         if (tokens.isEmpty()) return emptyList()
-        val totalWeight = tokens.sumOf { 2.0 + it.length + (if (hasPunctuation(it)) 4.0 else 0.0) }
+        val totalWeight = tokens.sumOf { tokenWeight(it) }
         val result = mutableListOf<WordTimestamp>()
         // Breathing room: small lead-in and inter-word gaps so words don't machine-gun.
         val leadIn = 0.07.coerceAtMost(lineDurationSec * 0.1)
@@ -64,7 +91,7 @@ object LyricsAnimationSchedule {
         val distributable = (lineDurationSec - leadIn - perGap * (tokens.size - 1)).coerceAtLeast(lineDurationSec * 0.5)
         var currentOffset = leadIn
         for (token in tokens) {
-            val weight = 2.0 + token.length + (if (hasPunctuation(token)) 4.0 else 0.0)
+            val weight = tokenWeight(token)
             val wordDur = (weight / totalWeight) * distributable
             result.add(WordTimestamp(
                 text = token,
@@ -79,14 +106,14 @@ object LyricsAnimationSchedule {
     fun synthesizeStory(text: String, lineStartSec: Double, lineDurationSec: Double): List<WordTimestamp> {
         val tokens = tokenize(text)
         if (tokens.isEmpty()) return emptyList()
-        val totalWeight = tokens.sumOf { it.length + 2.0 + (if (hasPunctuation(it)) 4.0 else 0.0) }
+        val totalWeight = tokens.sumOf { tokenWeight(it) }
         val startOffset = if (lineDurationSec >= 1.0) 0.1 else 0.0
         val perGap = if (tokens.size > 1) 0.05.coerceAtMost((lineDurationSec * 0.15) / (tokens.size - 1)) else 0.0
         val revealWindow = (lineDurationSec - startOffset - perGap * (tokens.size - 1)).coerceAtLeast(lineDurationSec * 0.6)
         val result = mutableListOf<WordTimestamp>()
         var currentOffset = startOffset
         for (token in tokens) {
-            val weight = token.length + 2.0 + (if (hasPunctuation(token)) 4.0 else 0.0)
+            val weight = tokenWeight(token)
             val wordDur = (weight / totalWeight) * revealWindow
             result.add(WordTimestamp(
                 text = token,
