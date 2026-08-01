@@ -41,8 +41,12 @@ fun LyricsStory(
 ) {
     val currentPosSec = currentPositionMs / 1000.0
     
-    val seedBase = remember(words) { words.firstOrNull()?.text?.hashCode()?.toLong() ?: 0L }
-    val groups = remember(words) { LyricsAnimationSchedule.getStoryGroups(words, seedBase) }
+    // Fresh random layout per display (like the original web version), so the
+    // same lyric never arranges the same way twice. Stable while on screen.
+    val storyLines = remember(words) {
+        val fullText = words.joinToString("") { it.text }.trim()
+        LyricsAnimationSchedule.layoutStory(words, kotlin.random.Random.nextLong(), fullText.length)
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -52,19 +56,18 @@ fun LyricsStory(
             else -> androidx.compose.ui.Alignment.CenterHorizontally
         }
     ) {
-        groups.forEachIndexed { index, group ->
-            val groupText = group.joinToString(" ") { it.text }
-            val scaleVariant = remember(group) { LyricsAnimationSchedule.getStoryScaleVariant(groupText, seedBase + index) }
+        storyLines.forEach { line ->
+            val scaleVariant = line.variant
             
             val groupFontSize = when (scaleVariant) {
-                0 -> baseFontSize * 1.5f
-                1 -> baseFontSize * 1.2f
-                2 -> baseFontSize * 1.0f
-                else -> baseFontSize * 0.8f
+                0 -> baseFontSize * 0.85f
+                1 -> baseFontSize * 1.1f
+                2 -> baseFontSize * 1.5f
+                else -> baseFontSize * 2.0f
             }
 
             FlowRow {
-                group.forEach { word ->
+                line.words.forEach { word ->
                     val isRevealed = isPast || (isActive && currentPosSec >= word.startTime)
 
                     val alpha by animateFloatAsState(
@@ -78,7 +81,7 @@ fun LyricsStory(
                         label = "translateY"
                     )
                     val blur by animateFloatAsState(
-                        targetValue = if (isRevealed) 0f else 4f,
+                        targetValue = if (isRevealed) 0f else 6f,
                         animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing),
                         label = "blur"
                     )

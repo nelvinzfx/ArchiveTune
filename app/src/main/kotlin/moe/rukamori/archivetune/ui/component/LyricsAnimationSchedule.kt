@@ -125,23 +125,32 @@ object LyricsAnimationSchedule {
         return result
     }
 
-    fun getStoryGroups(tokens: List<WordTimestamp>, seedBase: Long): List<List<WordTimestamp>> {
-        val groups = mutableListOf<List<WordTimestamp>>()
-        val random = kotlin.random.Random(seedBase)
-        var i = 0
-        while (i < tokens.size) {
-            val groupSize = random.nextInt(1, 4) // 1, 2, or 3
-            val end = (i + groupSize).coerceAtMost(tokens.size)
-            groups.add(tokens.subList(i, end))
-            i = end
-        }
-        return groups
-    }
+    data class StoryLine(val words: List<WordTimestamp>, val variant: Int)
 
-    fun getStoryScaleVariant(groupContent: String, seed: Long): Int {
+    // Port of the original web layout algorithm: random 1-3 word lines with a
+    // random size variant, never repeating the previous line's variant, and
+    // the largest variant reserved for short (1-2 word) lines. Seed comes from
+    // the caller so each display can be arranged differently.
+    fun layoutStory(words: List<WordTimestamp>, seed: Long, fullTextLength: Int): List<StoryLine> {
+        if (words.isEmpty()) return emptyList()
+        val maxVariant = when {
+            fullTextLength > 80 -> 1
+            fullTextLength > 40 -> 2
+            else -> 3
+        }
         val random = kotlin.random.Random(seed)
-        if (groupContent.length > 80) return random.nextInt(0, 2)
-        if (groupContent.length > 40) return random.nextInt(0, 3)
-        return random.nextInt(0, 4)
+        val lines = mutableListOf<StoryLine>()
+        var lastVariant = -1
+        var i = 0
+        while (i < words.size) {
+            val lineLength = random.nextInt(1, 4).coerceAtMost(words.size - i)
+            var variant = random.nextInt(0, maxVariant + 1)
+            if (variant == lastVariant) variant = (variant + 1) % (maxVariant + 1)
+            if (variant == 3 && lineLength > 2) variant = 2
+            lastVariant = variant
+            lines.add(StoryLine(words.subList(i, i + lineLength), variant))
+            i += lineLength
+        }
+        return lines
     }
 }
