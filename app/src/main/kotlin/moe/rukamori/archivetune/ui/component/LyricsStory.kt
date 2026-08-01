@@ -56,7 +56,10 @@ fun LyricsStory(
     // when they show up — fast/rap lines play every word's animation instead
     // of popping in with the transition skipped. Progress is a pure function
     // of playback position, so seeking and pausing behave correctly too.
-    val scheduleStartSec = remember(words) { words.minOf { it.startTime } }
+    // minOfOrNull: instrumental/break lines can legitimately have zero words
+    // (empty TTML spans or "\u266a"-only lines) and minOf on an empty list
+    // crashes the whole lyrics screen with NoSuchElementException.
+    val scheduleStartSec = remember(words) { words.minOfOrNull { it.startTime } ?: 0.0 }
     val composedAtSec = remember { currentPositionMs / 1000.0 }
     val anchorSec = revealAnchorSec ?: maxOf(scheduleStartSec, composedAtSec)
 
