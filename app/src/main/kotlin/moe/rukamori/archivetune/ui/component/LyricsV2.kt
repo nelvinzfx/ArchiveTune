@@ -98,7 +98,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.NonCancellable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -513,20 +512,20 @@ fun LyricsV2(
 
             // Story reveal choreography anchor (web model): the word reveal
             // schedule starts when the line activates, so words always play
-            // their full animation even on fast/rap lines. Re-anchor when the
-            // user seeks backwards within the same line.
+            // their full animation even on fast/rap lines. Updated synchronously
+            // during composition — an async (LaunchedEffect) update leaves one
+            // frame with a stale anchor, which flashes the whole next line fully
+            // revealed for a split second. Re-anchor on backward seeks too.
             var immersiveAnchorPosMs by remember { mutableLongStateOf(0L) }
             var lastImmersivePosMs by remember { mutableLongStateOf(0L) }
-            LaunchedEffect(currentLineIndex) {
+            var immersiveAnchorLine by remember { mutableIntStateOf(-1) }
+            if (immersiveAnchorLine != currentLineIndex) {
+                immersiveAnchorLine = currentLineIndex
                 immersiveAnchorPosMs = currentPositionMs
-                lastImmersivePosMs = currentPositionMs
+            } else if (currentPositionMs < lastImmersivePosMs - 400L) {
+                immersiveAnchorPosMs = currentPositionMs
             }
-            SideEffect {
-                if (currentPositionMs < lastImmersivePosMs - 400L) {
-                    immersiveAnchorPosMs = currentPositionMs
-                }
-                lastImmersivePosMs = currentPositionMs
-            }
+            lastImmersivePosMs = currentPositionMs
             Box(
                 modifier = Modifier
                     .fillMaxSize()
