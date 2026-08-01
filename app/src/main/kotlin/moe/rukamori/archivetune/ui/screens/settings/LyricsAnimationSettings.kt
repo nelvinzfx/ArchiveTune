@@ -103,6 +103,7 @@ fun LyricsAnimationSettings(navController: NavController) {
                                 LyricsAnimationStyle.APPLE -> stringResource(R.string.apple_music_style)
                                 LyricsAnimationStyle.DRILL -> "Drill"
                                 LyricsAnimationStyle.STORY -> "Story"
+                                LyricsAnimationStyle.KINETIC -> "Kinetic"
                             }
                         },
                     )

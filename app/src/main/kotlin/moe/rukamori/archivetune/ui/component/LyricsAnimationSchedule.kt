@@ -125,6 +125,28 @@ object LyricsAnimationSchedule {
         return result
     }
 
+    // Kinetic (web port): all words land within 80% of the line duration and
+    // the tail is held for reading. No gaps or lead-in, words flow contiguously.
+    fun synthesizeKinetic(text: String, lineStartSec: Double, lineDurationSec: Double): List<WordTimestamp> {
+        val tokens = tokenize(text)
+        if (tokens.isEmpty()) return emptyList()
+        val totalWeight = tokens.sumOf { tokenWeight(it) }
+        val revealWindow = (lineDurationSec * 0.8).coerceAtLeast(0.5.coerceAtMost(lineDurationSec))
+        val result = mutableListOf<WordTimestamp>()
+        var currentOffset = 0.0
+        for (token in tokens) {
+            val weight = tokenWeight(token)
+            val wordDur = (weight / totalWeight) * revealWindow
+            result.add(WordTimestamp(
+                text = token,
+                startTime = lineStartSec + currentOffset,
+                endTime = lineStartSec + currentOffset + wordDur
+            ))
+            currentOffset += wordDur
+        }
+        return result
+    }
+
     data class StoryLine(val words: List<WordTimestamp>, val variant: Int)
 
     // Port of the original web layout algorithm: random 1-3 word lines with a

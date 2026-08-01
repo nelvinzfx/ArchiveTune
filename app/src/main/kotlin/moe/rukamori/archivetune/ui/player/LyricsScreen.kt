@@ -170,7 +170,8 @@ fun LyricsScreen(
     val effectiveLyricsMode =
         remember(lyricsMode, lyricsAnimationStyle) {
             if (lyricsAnimationStyle == LyricsAnimationStyle.DRILL ||
-                lyricsAnimationStyle == LyricsAnimationStyle.STORY
+                lyricsAnimationStyle == LyricsAnimationStyle.STORY ||
+                lyricsAnimationStyle == LyricsAnimationStyle.KINETIC
             ) {
                 LyricsMode.V2
             } else {

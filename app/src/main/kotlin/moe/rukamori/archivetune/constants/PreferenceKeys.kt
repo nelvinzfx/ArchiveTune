@@ -672,6 +672,7 @@ enum class LyricsAnimationStyle {
     APPLE,
     DRILL,
     STORY,
+    KINETIC,
 }
 
 val LyricsTextCaseKey = stringPreferencesKey("lyricsTextCase")

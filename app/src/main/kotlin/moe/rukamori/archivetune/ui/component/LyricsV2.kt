@@ -506,7 +506,8 @@ fun LyricsV2(
         // ── Immersive single-line layout (Drill / Story) ──
         // Web-faithful: no scroll reveal. Only the active line takes over the screen.
         val immersiveStyle = lyricsAnimation == LyricsAnimationStyle.DRILL ||
-            lyricsAnimation == LyricsAnimationStyle.STORY
+            lyricsAnimation == LyricsAnimationStyle.STORY ||
+            lyricsAnimation == LyricsAnimationStyle.KINETIC
         if (immersiveStyle && isSynced) {
             val activeEntry = entriesWithWords.getOrNull(currentLineIndex)
 
@@ -573,6 +574,8 @@ fun LyricsV2(
                                     LyricsAnimationSchedule.synthesizeDrill(displayText, startSec, durSec)
                                 LyricsAnimationStyle.STORY ->
                                     LyricsAnimationSchedule.synthesizeStory(displayText, startSec, durSec)
+                                LyricsAnimationStyle.KINETIC ->
+                                    LyricsAnimationSchedule.synthesizeKinetic(displayText, startSec, durSec)
                                 else -> emptyList()
                             }
                         }
@@ -601,6 +604,20 @@ fun LyricsV2(
                                 isLineAllBackground = isAllBackground,
                                 textAlign = TextAlign.Start,
                                 lyricsFontFamily = lyricsFontFamily,
+                            )
+                            LyricsAnimationStyle.KINETIC -> LyricsKinetic(
+                                words = animatedWords,
+                                isActive = true,
+                                isPast = false,
+                                revealAnchorSec = immersiveAnchorPosMs / 1000.0,
+                                currentPositionMs = currentPositionMs,
+                                textColor = textColor,
+                                inactiveAlpha = inactiveAlpha,
+                                baseFontSize = lyricsTextSize,
+                                isLineAllBackground = isAllBackground,
+                                textAlign = TextAlign.Center,
+                                lyricsFontFamily = lyricsFontFamily,
+                                lineTextLength = displayText.length,
                             )
                             else -> {}
                         }
@@ -905,7 +922,8 @@ fun LyricsV2(
                     applyLyricsTextCase(item.text, lyricsTextCase)
                 }
                 val isImmersiveStyle = lyricsAnimation == LyricsAnimationStyle.DRILL ||
-                    lyricsAnimation == LyricsAnimationStyle.STORY
+                    lyricsAnimation == LyricsAnimationStyle.STORY ||
+                    lyricsAnimation == LyricsAnimationStyle.KINETIC
                 val animatedWords = remember(item, lyricsAnimation, lyricsTextCase, index, entriesWithWords) {
                     if (!isImmersiveStyle) {
                         null
@@ -920,6 +938,7 @@ fun LyricsV2(
                             when (lyricsAnimation) {
                                 LyricsAnimationStyle.DRILL -> LyricsAnimationSchedule.synthesizeDrill(displayText, startSec, durSec)
                                 LyricsAnimationStyle.STORY -> LyricsAnimationSchedule.synthesizeStory(displayText, startSec, durSec)
+                                LyricsAnimationStyle.KINETIC -> LyricsAnimationSchedule.synthesizeKinetic(displayText, startSec, durSec)
                                 else -> null
                             }
                         }
@@ -1060,6 +1079,19 @@ fun LyricsV2(
                                     isLineAllBackground = isAllBackground,
                                     textAlign = textAlign,
                                     lyricsFontFamily = lyricsFontFamily,
+                                )
+                                LyricsAnimationStyle.KINETIC -> LyricsKinetic(
+                                    words = animatedWords,
+                                    isActive = isActive,
+                                    isPast = isPast,
+                                    currentPositionMs = currentPositionMs,
+                                    textColor = textColor,
+                                    inactiveAlpha = inactiveAlpha,
+                                    baseFontSize = lyricsTextSize,
+                                    isLineAllBackground = isAllBackground,
+                                    textAlign = textAlign,
+                                    lyricsFontFamily = lyricsFontFamily,
+                                    lineTextLength = displayText.length,
                                 )
                                 else -> {}
                             }
