@@ -517,16 +517,19 @@ fun LyricsV2(
             // during composition — an async (LaunchedEffect) update leaves one
             // frame with a stale anchor, which flashes the whole next line fully
             // revealed for a split second. Re-anchor on backward seeks too.
+            // Choreography runs on the RAW playback clock: currentPositionMs
+            // carries a ~450ms visual lead meant for the list karaoke highlight,
+            // which made every word fire ~0.45s before its sung moment.
             var immersiveAnchorPosMs by remember { mutableLongStateOf(0L) }
             var lastImmersivePosMs by remember { mutableLongStateOf(0L) }
             var immersiveAnchorLine by remember { mutableIntStateOf(-1) }
             if (immersiveAnchorLine != currentLineIndex) {
                 immersiveAnchorLine = currentLineIndex
-                immersiveAnchorPosMs = currentPositionMs
-            } else if (currentPositionMs < lastImmersivePosMs - 400L) {
-                immersiveAnchorPosMs = currentPositionMs
+                immersiveAnchorPosMs = playbackPositionMs
+            } else if (playbackPositionMs < lastImmersivePosMs - 400L) {
+                immersiveAnchorPosMs = playbackPositionMs
             }
-            lastImmersivePosMs = currentPositionMs
+            lastImmersivePosMs = playbackPositionMs
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -584,7 +587,7 @@ fun LyricsV2(
                                 words = animatedWords,
                                 isActive = true,
                                 isPast = false,
-                                currentPositionMs = currentPositionMs,
+                                currentPositionMs = playbackPositionMs,
                                 textColor = textColor,
                                 inactiveAlpha = inactiveAlpha,
                                 baseFontSize = lyricsTextSize,
@@ -597,7 +600,7 @@ fun LyricsV2(
                                 isActive = true,
                                 isPast = false,
                                 revealAnchorSec = immersiveAnchorPosMs / 1000.0,
-                                currentPositionMs = currentPositionMs,
+                                currentPositionMs = playbackPositionMs,
                                 textColor = textColor,
                                 inactiveAlpha = inactiveAlpha,
                                 baseFontSize = lyricsTextSize,
@@ -610,7 +613,7 @@ fun LyricsV2(
                                 isActive = true,
                                 isPast = false,
                                 revealAnchorSec = immersiveAnchorPosMs / 1000.0,
-                                currentPositionMs = currentPositionMs,
+                                currentPositionMs = playbackPositionMs,
                                 textColor = textColor,
                                 inactiveAlpha = inactiveAlpha,
                                 baseFontSize = lyricsTextSize,
@@ -1060,7 +1063,7 @@ fun LyricsV2(
                                     words = animatedWords,
                                     isActive = isActive,
                                     isPast = isPast,
-                                    currentPositionMs = currentPositionMs,
+                                    currentPositionMs = playbackPositionMs,
                                     textColor = textColor,
                                     inactiveAlpha = inactiveAlpha,
                                     baseFontSize = lyricsTextSize,
@@ -1072,7 +1075,7 @@ fun LyricsV2(
                                     words = animatedWords,
                                     isActive = isActive,
                                     isPast = isPast,
-                                    currentPositionMs = currentPositionMs,
+                                    currentPositionMs = playbackPositionMs,
                                     textColor = textColor,
                                     inactiveAlpha = inactiveAlpha,
                                     baseFontSize = lyricsTextSize,
@@ -1084,7 +1087,7 @@ fun LyricsV2(
                                     words = animatedWords,
                                     isActive = isActive,
                                     isPast = isPast,
-                                    currentPositionMs = currentPositionMs,
+                                    currentPositionMs = playbackPositionMs,
                                     textColor = textColor,
                                     inactiveAlpha = inactiveAlpha,
                                     baseFontSize = lyricsTextSize,

@@ -61,7 +61,10 @@ fun LyricsStory(
     // crashes the whole lyrics screen with NoSuchElementException.
     val scheduleStartSec = remember(words) { words.minOfOrNull { it.startTime } ?: 0.0 }
     val composedAtSec = remember { currentPositionMs / 1000.0 }
-    val anchorSec = revealAnchorSec ?: maxOf(scheduleStartSec, composedAtSec)
+    // Clamp to the first word: an anchor earlier than the schedule would fire
+    // words before their sung moment (the immersive caller passes the raw
+    // activation position, which leads the line by ~450ms).
+    val anchorSec = maxOf(scheduleStartSec, revealAnchorSec ?: composedAtSec)
 
     Column(
         modifier = Modifier.fillMaxWidth(),
